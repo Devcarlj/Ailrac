@@ -52,8 +52,12 @@ def init_db():
         "telegram_enabled": "false",
         "safe_search": "true",
         "ai_model": "gemini",
+        "theme_mode": "system",
         "bot_mode": "search",
         "assistant_voice_profile": "default",
+        # Mode-level kill switches (true = mode is available to use)
+        "search_mode_enabled": "true",
+        "control_mode_enabled": "true",
     }
     for key, value in defaults.items():
         cur.execute(
@@ -191,8 +195,12 @@ def get_settings() -> dict:
         "telegram_enabled": raw.get("telegram_enabled", "false") == "true",
         "safe_search": raw.get("safe_search", "true") == "true",
         "ai_model": raw.get("ai_model", "gemini"),
+        "theme_mode": raw.get("theme_mode", "system"),
         "bot_mode": raw.get("bot_mode", "search"),
         "assistant_voice_profile": raw.get("assistant_voice_profile", "default"),
+        # Mode kill-switches
+        "search_mode_enabled": raw.get("search_mode_enabled", "true") == "true",
+        "control_mode_enabled": raw.get("control_mode_enabled", "true") == "true",
     }
 
 
@@ -200,7 +208,7 @@ def update_settings(updates: dict):
     conn = get_conn()
     cur = conn.cursor()
     # Keys that should be stored as-is (not lowercased booleans)
-    raw_string_keys = {"ai_model", "bot_mode", "assistant_voice_profile"}
+    raw_string_keys = {"ai_model", "theme_mode", "bot_mode", "assistant_voice_profile"}
     for key, value in updates.items():
         if key == "blocked_domains":
             value = json.dumps(value)

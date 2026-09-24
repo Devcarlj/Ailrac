@@ -17,7 +17,34 @@ const MODE_OPTIONS = [
   },
 ]
 
-export default function SettingsPanel() {
+function ModeToggle({ id, checked, onChange, label, description, accentClass }) {
+  return (
+    <div className={`mode-kill-switch-row ${accentClass}`}>
+      <div className="mode-kill-switch-info">
+        <span className="mode-kill-switch-label">{label}</span>
+        <span className="mode-kill-switch-desc">{description}</span>
+      </div>
+      <label className="toggle-switch" htmlFor={id} aria-label={label}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={checked}
+          onChange={e => onChange(e.target.checked)}
+        />
+        <span className="toggle-track">
+          <span className="toggle-thumb" />
+        </span>
+      </label>
+    </div>
+  )
+}
+
+export default function SettingsPanel({
+  searchModeEnabled = true,
+  controlModeEnabled = true,
+  onToggleSearchMode,
+  onToggleControlMode,
+}) {
   const [currentMode, setCurrentMode] = useState('search')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -120,6 +147,44 @@ export default function SettingsPanel() {
         Telegram: <code>/search</code> · <code>/control</code> or use the persistent keyboard buttons.
         Changes sync with this dashboard within a few seconds.
       </p>
+
+      {/* ── Mode Kill-Switches ────────────────────────────────────────────── */}
+      <div className="mode-kill-switches">
+        <h4 className="mode-kill-switches-heading">🔐 Mode Access Control</h4>
+        <p className="settings-desc mode-kill-desc">
+          Independently enable or disable each mode. A disabled mode refuses all requests
+          regardless of the active mode switch above — useful for locking Ailrac to a
+          single capability surface.
+        </p>
+
+        <ModeToggle
+          id="search-mode-enabled-toggle"
+          checked={searchModeEnabled}
+          onChange={onToggleSearchMode}
+          label="🔍 Search Mode Enabled"
+          description={
+            searchModeEnabled
+              ? 'Web search & content summarization are active. Disable to block all web access.'
+              : '⚠️ Disabled — Ailrac will refuse all web search and summarization requests.'
+          }
+          accentClass="mode-kill-search"
+        />
+
+        <div className="divider" />
+
+        <ModeToggle
+          id="control-mode-enabled-toggle"
+          checked={controlModeEnabled}
+          onChange={onToggleControlMode}
+          label="🎮 Control Mode Enabled"
+          description={
+            controlModeEnabled
+              ? 'Local OS automation (apps, mouse, scripts) is active. Disable to block all system access.'
+              : '⚠️ Disabled — Ailrac will refuse all local OS automation and script execution.'
+          }
+          accentClass="mode-kill-control"
+        />
+      </div>
     </section>
   )
 }

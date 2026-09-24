@@ -176,34 +176,57 @@ def build_approval_card(text: str, summary: str, precaution: str) -> str:
 
 
 def get_risk_summary(text: str) -> tuple[str, str]:
-    """Ask Gemini to summarize what this command will do and what the risk is."""
+    """Ask Gemini (or OpenRouter fallback) to summarize what this command will do and what the risk is."""
     from ailrac_core import GEMINI_FLASH_MODEL
     from gemini_client import call_with_server_retry, get_shared_client
 
+    prompt = (
+        f'The user sent this command to a PC automation bot: "{text}"\n\n'
+        "Reply ONLY with a JSON object, no markdown:\n"
+        '{"summary": "one sentence: exactly what will happen on the PC", '
+        '"precaution": "one sentence: the specific risk or danger, or null if safe"}'
+    )
+
+    # Try Gemini first
     try:
         client = get_shared_client()
-        if not client:
-            raise RuntimeError("GEMINI_API_KEY not configured")
-        prompt = (
-            f'The user sent this command to a PC automation bot: "{text}"\n\n'
-            "Reply ONLY with a JSON object, no markdown:\n"
-            '{"summary": "one sentence: exactly what will happen on the PC", '
-            '"precaution": "one sentence: the specific risk or danger, or null if safe"}'
-        )
-        response = call_with_server_retry(
-            lambda: client.models.generate_content(
-                model=GEMINI_FLASH_MODEL, contents=prompt
-            ),
-            label="risk_summary",
-        )
-        raw = response.text.strip().strip("```").lstrip("json").strip()
-        data = json.loads(raw)
-        summary = data.get("summary", text)
-        precaution = data.get("precaution") or "This action may be irreversible."
-        return summary, precaution
+        if client:
+            response = call_with_server_retry(
+                lambda: client.models.generate_content(
+                    model=GEMINI_FLASH_MODEL, contents=prompt
+                ),
+                label="risk_summary",
+            )
+            raw = response.text.strip().strip("```").lstrip("json").strip()
+            data = json.loads(raw)
+            summary = data.get("summary", text)
+            precaution = data.get("precaution") or "This action may be irreversible."
+            return summary, precaution
     except Exception as exc:
-        print(f"[WARNING] get_risk_summary failed: {exc}")
-        return text, "This action may be irreversible."
+        print(f"[WARNING] get_risk_summary (Gemini) failed: {exc}")
+
+    # Fallback to OpenRouter
+    try:
+        from openrouter_client import get_openrouter_client, call_with_openrouter_retry
+        or_client = get_openrouter_client()
+        if or_client:
+            response = call_with_openrouter_retry(
+                lambda: or_client.chat.completions.create(
+                    model="anthropic/claude-3.5-sonnet",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=256,
+                ),
+                label="risk_summary_openrouter",
+            )
+            raw = response.choices[0].message.content.strip().strip("```").lstrip("json").strip()
+            data = json.loads(raw)
+            summary = data.get("summary", text)
+            precaution = data.get("precaution") or "This action may be irreversible."
+            return summary, precaution
+    except Exception as exc:
+        print(f"[WARNING] get_risk_summary (OpenRouter) failed: {exc}")
+
+    return text, "This action may be irreversible."
 
 
 def _normalize_mode_label(text: str) -> str:
@@ -356,7 +379,9 @@ def split_into_sentences(text: str):
         return [text.strip()]
     return chunks
 
-def _speak_with_windows_sapi(speech_text: str) -> bool:
+def _speak_with_windows_sapi(
+    speech_text: str, abort_check, controller: "TTSController"
+) -> bool:
     """Uses built-in Windows SAPI — reliable for full-length speech."""
     try:
         import win32com.client
@@ -364,8 +389,15 @@ def _speak_with_windows_sapi(speech_text: str) -> bool:
         speaker = win32com.client.Dispatch("SAPI.SpVoice")
         speaker.Rate = 0
         speaker.Volume = 100
-        speaker.Speak(speech_text, 0)
-        return True
+        controller.sapi_voice = speaker
+        try:
+            for chunk in split_into_sentences(speech_text):
+                if abort_check():
+                    return False
+                speaker.Speak(chunk, 0)
+            return not abort_check()
+        finally:
+            controller.sapi_voice = None
     except Exception as e:
         print(f"[WARN] Windows SAPI TTS failed: {e}")
         return False
@@ -445,16 +477,18 @@ def _speak_one_utterance(speech_text: str, abort_check, controller: "TTSControll
             return True
 
     if os.name == "nt" and not abort_check():
-        if _speak_with_windows_sapi(speech_text):
+        if _speak_with_windows_sapi(speech_text, abort_check, controller):
             return True
 
     if not abort_check():
-        return _speak_with_pyttsx3(speech_text, abort_check)
+        return _speak_with_pyttsx3(speech_text, abort_check, controller)
 
     return False
 
 
-def _speak_with_pyttsx3(speech_text: str, abort_check) -> bool:
+def _speak_with_pyttsx3(
+    speech_text: str, abort_check, controller: "TTSController"
+) -> bool:
     """Fallback TTS via pyttsx3."""
     try:
         try:
@@ -462,16 +496,20 @@ def _speak_with_pyttsx3(speech_text: str, abort_check) -> bool:
         except Exception:
             engine = pyttsx3.init()
         engine.setProperty("rate", 170)
-        for chunk in split_into_sentences(speech_text):
-            if abort_check():
-                break
-            engine.say(chunk)
-        engine.runAndWait()
+        controller.engine = engine
+        try:
+            for chunk in split_into_sentences(speech_text):
+                if abort_check():
+                    break
+                engine.say(chunk)
+            engine.runAndWait()
+        finally:
+            controller.engine = None
         try:
             engine.stop()
         except Exception:
             pass
-        return True
+        return not abort_check()
     except Exception as e:
         print(f"[WARN] pyttsx3 TTS failed: {e}")
         return False
@@ -480,6 +518,7 @@ def _speak_with_pyttsx3(speech_text: str, abort_check) -> bool:
 class TTSController:
     def __init__(self):
         self.engine = None
+        self.sapi_voice = None
         self.piper_process = None
         self.lock = threading.Lock()
         self.is_speaking = False
@@ -538,20 +577,29 @@ class TTSController:
         t.start()
 
     def stop(self):
-        """Immediately stops the TTS engine (does not cancel a pending new speak)."""
+        """Immediately stops TTS and invalidates in-flight speak/stream workers."""
         with self.lock:
             self.abort = True
+            self.speak_generation += 1
             if self.piper_process:
                 try:
                     self.piper_process.terminate()
                 except Exception as e:
                     print(f"[ERROR] Stopping Piper process failed: {e}")
                 self.piper_process = None
+            if self.sapi_voice:
+                try:
+                    # SVSFPurgeBeforeSpeak — stop current SAPI utterance
+                    self.sapi_voice.Speak("", 2)
+                except Exception as e:
+                    print(f"[ERROR] Stopping SAPI voice failed: {e}")
+                self.sapi_voice = None
             if self.engine:
                 try:
                     self.engine.stop()
                 except Exception as e:
                     print(f"[ERROR] Stopping engine failed: {e}")
+                self.engine = None
             self.is_speaking = False
         if os.name == "nt":
             try:

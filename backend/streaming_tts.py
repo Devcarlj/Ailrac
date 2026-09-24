@@ -19,6 +19,9 @@ _stream_session: contextvars.ContextVar["StreamingTTSSession | None"] = contextv
     "streaming_tts_session", default=None
 )
 
+_active_session_lock = threading.Lock()
+_active_session: "StreamingTTSSession | None" = None
+
 _SENTINEL = object()
 
 # Speak first phrase early (before a full sentence terminator) for lower latency.
@@ -81,6 +84,11 @@ class StreamingTTSSession:
     def cancel(self) -> None:
         self._closed = True
         self.controller.stop()
+        while True:
+            try:
+                self._q.get_nowait()
+            except queue.Empty:
+                break
         self._q.put(_SENTINEL)
 
     def _enqueue_sentence(self, raw: str) -> None:
@@ -156,7 +164,7 @@ class StreamingTTSSession:
                 if item is _SENTINEL:
                     break
                 if aborted():
-                    continue
+                    break
 
                 with self.controller.lock:
                     self.controller.is_speaking = True
@@ -166,11 +174,34 @@ class StreamingTTSSession:
         except Exception as exc:
             print(f"[ERROR] Streaming TTS worker failed: {exc}")
         finally:
+            _clear_active_session_if(self)
             with self.controller.lock:
                 if generation == self.controller.speak_generation:
                     self.controller.is_speaking = False
                     self.controller.abort = False
             print("[Stream TTS] Playback worker finished.")
+
+
+def _set_active_session(session: "StreamingTTSSession | None") -> None:
+    global _active_session
+    with _active_session_lock:
+        _active_session = session
+
+
+def _clear_active_session_if(session: "StreamingTTSSession") -> None:
+    global _active_session
+    with _active_session_lock:
+        if _active_session is session:
+            _active_session = None
+
+
+def stop_all_streaming_tts() -> None:
+    """Cancel the globally active streaming session (e.g. user clicked Stop Speaking)."""
+    with _active_session_lock:
+        session = _active_session
+        _active_session = None
+    if session is not None:
+        session.cancel()
 
 
 def begin_streaming_tts(*, force: bool = False):
@@ -182,17 +213,16 @@ def begin_streaming_tts(*, force: bool = False):
 
     session = StreamingTTSSession(tts_controller, force=force)
     session.start()
+    _set_active_session(session)
     return _stream_session.set(session)
 
 
 def end_streaming_tts(token) -> None:
-    """Flush remaining text and wait for the worker to finish queued audio."""
+    """Flush remaining text and let the background worker finish queued audio."""
     try:
         session = _stream_session.get()
         if session is not None:
             session.finish()
-            if session._worker and session._worker.is_alive():
-                session._worker.join(timeout=300)
     finally:
         if token is not None:
             _stream_session.reset(token)

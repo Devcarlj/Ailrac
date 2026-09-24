@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react'
-import Sidebar from './components/Sidebar'
-import ChatWindow from './components/ChatWindow'
-import MessageInput from './components/MessageInput'
-import SettingsPage from './components/SettingsPage'
-import CodeApprovalModal from './components/CodeApprovalModal'
-import { useChat } from './hooks/useChat'
+import { useState, useEffect } from "react";
+import Sidebar from "./components/Sidebar";
+import ChatWindow from "./components/ChatWindow";
+import MessageInput from "./components/MessageInput";
+import SettingsPage from "./components/SettingsPage";
+import CodeApprovalModal from "./components/CodeApprovalModal";
+import { useChat } from "./hooks/useChat";
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('chat') // 'chat' or 'settings'
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [currentView, setCurrentView] = useState("chat"); // 'chat' or 'settings'
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const {
     conversations,
@@ -29,11 +29,27 @@ export default function App() {
     approveExecution,
     denyExecution,
     isResolvingExecution,
-  } = useChat()
+  } = useChat();
 
   useEffect(() => {
-    loadSettings()
-  }, [])
+    loadSettings();
+  }, []);
+
+  useEffect(() => {
+    const mode = settings?.theme_mode ?? "system";
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const applyTheme = () => {
+      const resolvedMode =
+        mode === "system" ? (mediaQuery.matches ? "dark" : "light") : mode;
+      document.documentElement.dataset.theme = resolvedMode;
+    };
+
+    applyTheme();
+    if (mode === "system") {
+      mediaQuery.addEventListener("change", applyTheme);
+      return () => mediaQuery.removeEventListener("change", applyTheme);
+    }
+  }, [settings?.theme_mode]);
 
   return (
     <div className="app-container">
@@ -50,26 +66,26 @@ export default function App() {
         currentConversation={currentConversation}
         currentView={currentView}
         onNewChat={() => {
-          newConversation()
-          setCurrentView('chat')
+          newConversation();
+          setCurrentView("chat");
         }}
         onSelectConversation={(conv) => {
-          selectConversation(conv)
-          setCurrentView('chat')
+          selectConversation(conv);
+          setCurrentView("chat");
         }}
         onDeleteConversation={deleteConversation}
         onRenameConversation={renameConversation}
-        onOpenSettings={() => setCurrentView('settings')}
+        onOpenSettings={() => setCurrentView("settings")}
         isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(v => !v)}
+        onToggle={() => setSidebarOpen((v) => !v)}
       />
 
-      <main className={`main-area ${!sidebarOpen ? 'sidebar-collapsed' : ''}`}>
-        {currentView === 'settings' ? (
+      <main className={`main-area ${!sidebarOpen ? "sidebar-collapsed" : ""}`}>
+        {currentView === "settings" ? (
           <SettingsPage
             settings={settings}
             onSave={saveSettings}
-            onBack={() => setCurrentView('chat')}
+            onBack={() => setCurrentView("chat")}
           />
         ) : (
           <>
@@ -79,7 +95,7 @@ export default function App() {
               isSpeaking={isSpeaking}
               onStopSpeaking={stopSpeaking}
               currentConversation={currentConversation}
-              onToggleSidebar={() => setSidebarOpen(v => !v)}
+              onToggleSidebar={() => setSidebarOpen((v) => !v)}
               sidebarOpen={sidebarOpen}
               onSendSuggestion={sendMessage}
             />
@@ -88,6 +104,5 @@ export default function App() {
         )}
       </main>
     </div>
-  )
+  );
 }
-

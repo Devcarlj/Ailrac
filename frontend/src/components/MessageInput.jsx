@@ -1,89 +1,95 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from "react";
 
 export default function MessageInput({ onSend, isLoading }) {
-  const [text, setText] = useState('')
-  const [isListening, setIsListening] = useState(false)
-  const textareaRef = useRef(null)
-  const recognitionRef = useRef(null)
+  const [text, setText] = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const textareaRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   // Auto-resize textarea as content grows
   useEffect(() => {
-    const ta = textareaRef.current
+    const ta = textareaRef.current;
     if (ta) {
-      ta.style.height = 'auto'
-      ta.style.height = Math.min(ta.scrollHeight, 180) + 'px'
+      ta.style.height = "auto";
+      ta.style.height = Math.min(ta.scrollHeight, 180) + "px";
     }
-  }, [text])
+  }, [text]);
 
   const handleSend = () => {
-    const trimmed = text.trim()
+    const trimmed = text.trim();
     if (trimmed && !isLoading) {
-      onSend(trimmed)
-      setText('')
-      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+      onSend(trimmed);
+      setText("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
     }
-  }
+  };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
-  }
+  };
 
   const toggleVoice = () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
-      alert('Voice input is not supported in this browser. Please use Chrome or Edge.')
-      return
+      alert(
+        "Voice input is not supported in this browser. Please use Chrome or Edge.",
+      );
+      return;
     }
 
     if (isListening) {
-      recognitionRef.current?.stop()
-      setIsListening(false)
-      return
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
     }
 
-    const recognition = new SR()
-    recognition.continuous = false
-    recognition.interimResults = false
-    recognition.lang = 'en-US'
+    const recognition = new SR();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
 
     recognition.onresult = (e) => {
-      const transcript = e.results[0][0].transcript
-      setText(prev => prev ? `${prev} ${transcript}` : transcript)
-      setIsListening(false)
-    }
-    recognition.onerror = () => setIsListening(false)
-    recognition.onend = () => setIsListening(false)
+      const transcript = e.results[0][0].transcript;
+      setText((prev) => (prev ? `${prev} ${transcript}` : transcript));
+      setIsListening(false);
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
 
-    recognitionRef.current = recognition
-    recognition.start()
-    setIsListening(true)
-  }
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  };
 
   return (
     <div className="input-area">
-      <div className={`input-wrapper ${isListening ? 'listening-ring' : ''}`}>
+      <div className={`input-wrapper ${isListening ? "listening-ring" : ""}`}>
         <textarea
           ref={textareaRef}
           id="message-input"
           className="message-textarea"
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={isListening ? '🎙️ Listening…' : 'Message Ailrac…  (Enter to send, Shift+Enter for new line)'}
+          placeholder={
+            isListening
+              ? "Listening…"
+              : "Message Ailrac…  (Enter to send, Shift+Enter for new line)"
+          }
           rows={1}
           disabled={isLoading}
         />
         <div className="input-buttons">
           <button
             id="voice-btn"
-            className={`icon-action-btn voice-btn ${isListening ? 'listening' : ''}`}
+            className={`icon-action-btn voice-btn ${isListening ? "listening" : ""}`}
             onClick={toggleVoice}
-            title={isListening ? 'Stop listening' : 'Voice input'}
+            title={isListening ? "Stop listening" : "Voice input"}
           >
-            {isListening ? '🔴' : '🎙️'}
+            {isListening ? "■" : "◉"}
           </button>
           <button
             id="send-btn"
@@ -92,13 +98,17 @@ export default function MessageInput({ onSend, isLoading }) {
             disabled={!text.trim() || isLoading}
             title="Send message"
           >
-            {isLoading
-              ? <span className="spinner" />
-              : <span className="send-arrow">↑</span>}
+            {isLoading ? (
+              <span className="spinner" />
+            ) : (
+              <span className="send-arrow">↑</span>
+            )}
           </button>
         </div>
       </div>
-      <p className="input-hint">Ailrac can make mistakes. Verify important information.</p>
+      <p className="input-hint">
+        Ailrac can make mistakes. Verify important information.
+      </p>
     </div>
-  )
+  );
 }

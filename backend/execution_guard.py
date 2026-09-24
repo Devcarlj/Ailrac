@@ -48,6 +48,7 @@ FORBIDDEN_SUBSTRINGS = [
     "environ[",
     "TELEGRAM_BOT_TOKEN",
     "GEMINI_API_KEY",
+    "OPENROUTER_API_KEY",
     "MY_TELEGRAM_ID",
     "credentials",
     "id_rsa",
@@ -182,7 +183,7 @@ def _safe_builtins_dict() -> dict[str, Any]:
 def _collect_secret_values() -> list[str]:
     """Environment values that must never appear in model output."""
     secrets: list[str] = []
-    for key in ("GEMINI_API_KEY", "TELEGRAM_BOT_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
+    for key in ("GEMINI_API_KEY", "OPENROUTER_API_KEY", "TELEGRAM_BOT_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"):
         val = os.getenv(key, "").strip()
         if len(val) >= 8:
             secrets.append(val)
@@ -676,7 +677,7 @@ def redact_secrets(text: str) -> str:
             redacted = re.sub(re.escape(partial) + r"[\w\-\.]*", "[REDACTED_SECRET]", redacted)
 
     redacted = re.sub(
-        r"(?i)(gemini_api_key|telegram_bot_token|api[_-]?key)\s*[=:]\s*\S+",
+        r"(?i)(gemini_api_key|openrouter_api_key|telegram_bot_token|api[_-]?key)\s*[=:]\s*\S+",
         r"\1=[REDACTED_SECRET]",
         redacted,
     )

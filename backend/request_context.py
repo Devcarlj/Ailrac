@@ -23,6 +23,7 @@ _session_lock = threading.RLock()
 @dataclass
 class _ControlSession:
     python_submitted: bool = False
+    approval_queued: bool = False
     launched: frozenset[str] = field(default_factory=frozenset)
     typed: tuple[str, ...] = ()
 
@@ -94,6 +95,16 @@ def was_python_submitted() -> bool:
         return _get_session().python_submitted
 
 
+def mark_approval_queued() -> None:
+    with _session_lock:
+        _get_session().approval_queued = True
+
+
+def was_approval_queued() -> bool:
+    with _session_lock:
+        return _get_session().approval_queued
+
+
 def record_launch(app_name: str) -> None:
     name = (app_name or "").strip().lower()
     if not name:
@@ -128,10 +139,15 @@ def get_typed_fragments() -> tuple[str, ...]:
 
 
 def skip_immediate_control_tool(tool_name: str) -> str | None:
-    """Block launch/type/click tools after run_python_code queued in this request."""
-    if was_python_submitted():
+    """Block launch/type/click tools only when a script is awaiting human approval.
+
+    Benign scripts run directly inside the sandbox (no approval needed),
+    so ailrac_launch() must NOT be blocked while they execute.
+    Only block duplicate tool calls when a Telegram approval card was queued.
+    """
+    if was_approval_queued():
         return (
-            f"Skipped {tool_name}: automation is handled by the run_python_code script "
-            "awaiting your approval — do not duplicate actions."
+            f"Skipped {tool_name}: a script is already queued for Telegram approval — "
+            "do not duplicate actions until the user approves or rejects it."
         )
     return None

@@ -1,27 +1,31 @@
-import { useEffect, useRef } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import { useEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 const SUGGESTIONS = [
-  '🔍 Search for the latest AI news',
-  '📺 Open YouTube for me',
-  '🐍 Write a Python function to reverse a string',
-  '💡 What can you help me with?',
-]
+  "🔍 Search for the latest AI news",
+  "📺 Open YouTube for me",
+  "🐍 Write a Python function to reverse a string",
+  "💡 What can you help me with?",
+];
 
 function TypingIndicator() {
   return (
     <div className="message assistant">
-      <div className="msg-avatar ailrac-avatar">⚡</div>
+      <div className="msg-avatar ailrac-avatar" aria-hidden="true">
+        A
+      </div>
       <div className="msg-bubble ai-bubble">
         <div className="typing-indicator">
-          <span /><span /><span />
+          <span />
+          <span />
+          <span />
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function CodeBlock({ language, children }) {
@@ -30,25 +34,30 @@ function CodeBlock({ language, children }) {
       style={oneDark}
       language={language}
       PreTag="div"
-      customStyle={{ borderRadius: '8px', margin: '8px 0', fontSize: '13px' }}
+      customStyle={{ borderRadius: "8px", margin: "8px 0", fontSize: "13px" }}
     >
-      {String(children).replace(/\n$/, '')}
+      {String(children).replace(/\n$/, "")}
     </SyntaxHighlighter>
-  )
+  );
 }
 
 function Message({ msg }) {
-  const isUser = msg.role === 'user'
+  const isUser = msg.role === "user";
   const time = new Date(msg.timestamp).toLocaleTimeString([], {
-    hour: '2-digit', minute: '2-digit',
-  })
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return (
     <div className={`message ${msg.role}`}>
-      {!isUser && <div className="msg-avatar ailrac-avatar">⚡</div>}
+      {!isUser && (
+        <div className="msg-avatar ailrac-avatar" aria-hidden="true">
+          A
+        </div>
+      )}
 
       <div className="msg-body">
-        <div className={`msg-bubble ${isUser ? 'user-bubble' : 'ai-bubble'}`}>
+        <div className={`msg-bubble ${isUser ? "user-bubble" : "ai-bubble"}`}>
           {isUser ? (
             <p className="msg-text">{msg.content}</p>
           ) : (
@@ -57,13 +66,15 @@ function Message({ msg }) {
                 remarkPlugins={[remarkGfm]}
                 components={{
                   code({ node, children, ...props }) {
-                    const match = /language-(\w+)/.exec(props.className || '')
-                    const isInline = node?.tagName === 'code' && !match
+                    const match = /language-(\w+)/.exec(props.className || "");
+                    const isInline = node?.tagName === "code" && !match;
                     return !isInline && match ? (
                       <CodeBlock language={match[1]}>{children}</CodeBlock>
                     ) : (
-                      <code className="inline-code" {...props}>{children}</code>
-                    )
+                      <code className="inline-code" {...props}>
+                        {children}
+                      </code>
+                    );
                   },
                 }}
               >
@@ -77,15 +88,19 @@ function Message({ msg }) {
 
       {isUser && <div className="msg-avatar user-avatar">U</div>}
     </div>
-  )
+  );
 }
 
 // ─── VOICE VISUALIZER OVERLAY ───
 function VoiceVisualizer({ onStop }) {
-  const BARS = 28
+  const BARS = 28;
 
   return (
-    <div className="voice-visualizer-container" role="status" aria-label="AI is speaking">
+    <div
+      className="voice-visualizer-container"
+      role="status"
+      aria-label="AI is speaking"
+    >
       <div className="voice-visualizer-inner">
         {/* Glow orb behind the waveform */}
         <div className="voice-glow-orb" />
@@ -119,32 +134,44 @@ function VoiceVisualizer({ onStop }) {
         </button>
       </div>
     </div>
-  )
+  );
 }
 
 export default function ChatWindow({
-  messages, isLoading, isSpeaking, onStopSpeaking,
-  currentConversation, onToggleSidebar, sidebarOpen, onSendSuggestion,
+  messages,
+  isLoading,
+  isSpeaking,
+  onStopSpeaking,
+  currentConversation,
+  onToggleSidebar,
+  sidebarOpen,
+  onSendSuggestion,
 }) {
-  const bottomRef = useRef(null)
+  const bottomRef = useRef(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isLoading])
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
 
   return (
     <div className="chat-window">
       {/* Header */}
       <header className="chat-header">
         {!sidebarOpen && (
-          <button className="icon-btn" onClick={onToggleSidebar} title="Open sidebar">
-            ▶
+          <button
+            className="icon-btn"
+            onClick={onToggleSidebar}
+            title="Open sidebar"
+          >
+            ›
           </button>
         )}
         <div className="chat-header-title">
-          {currentConversation
-            ? <h1 className="chat-title">{currentConversation.title}</h1>
-            : <h1 className="chat-title">Ailrac</h1>}
+          {currentConversation ? (
+            <h1 className="chat-title">{currentConversation.title}</h1>
+          ) : (
+            <h1 className="chat-title">Ailrac</h1>
+          )}
         </div>
         <div className="status-badge">
           <span className="status-dot" />
@@ -156,18 +183,20 @@ export default function ChatWindow({
       <div className="messages-area">
         {messages.length === 0 && !isLoading && (
           <div className="welcome-screen">
-            <div className="welcome-logo">⚡</div>
+            <div className="welcome-logo" aria-hidden="true">
+              A
+            </div>
             <h2 className="welcome-title">What can I help with?</h2>
             <p className="welcome-sub">
-              Ask me anything — I can search the web, write code, answer questions,
-              open apps, and more.
+              Ask me anything — I can search the web, write code, answer
+              questions, open apps, and more.
             </p>
             <div className="suggestions-grid">
               {SUGGESTIONS.map((s, i) => (
                 <button
                   key={i}
                   className="suggestion-chip"
-                  onClick={() => onSendSuggestion(s.replace(/^[^\s]+\s/, ''))}
+                  onClick={() => onSendSuggestion(s.replace(/^[^\s]+\s/, ""))}
                 >
                   {s}
                 </button>
@@ -176,7 +205,10 @@ export default function ChatWindow({
           </div>
         )}
 
-        {messages.map(msg => <Message key={msg.id} msg={msg} />)}
+        {/* FIX APPLIED BELOW: Filters out any null/undefined entries safely before mapping */}
+        {messages.filter(Boolean).map((msg) => (
+          <Message key={msg.id} msg={msg} />
+        ))}
         {isLoading && <TypingIndicator />}
         <div ref={bottomRef} />
       </div>
@@ -184,5 +216,5 @@ export default function ChatWindow({
       {/* Voice Visualizer Overlay */}
       {isSpeaking && <VoiceVisualizer onStop={onStopSpeaking} />}
     </div>
-  )
+  );
 }

@@ -18,8 +18,72 @@ logger = logging.getLogger("ailrac.gemini")
 GEMINI_REQUEST_TIMEOUT_MS = 120_000
 
 _client: genai.Client | None = None
+_client_configuration_error: str | None = None
 
 T = TypeVar("T")
+
+_AI_STUDIO_KEY_URL = "https://aistudio.google.com/apikey"
+
+
+def normalize_gemini_api_key(raw: str) -> str:
+    """Strip whitespace and optional quoting from .env values."""
+    key = (raw or "").strip()
+    if len(key) >= 2 and key[0] == key[-1] and key[0] in "\"'":
+        key = key[1:-1].strip()
+    return key
+
+
+def gemini_api_key_configuration_error(key: str) -> str | None:
+    """Return a user-safe message when *key* is missing or the wrong credential type."""
+    if not key:
+        return "GEMINI_API_KEY is not configured in backend/.env."
+    lower = key.lower()
+    if lower.startswith("bearer "):
+        key = key[7:].strip()
+        lower = key.lower()
+    if key.startswith(("ya29.", "AQ.")):
+        return (
+            "GEMINI_API_KEY is an OAuth access token (from gcloud auth or a Google login), "
+            f"not a Gemini API key. Create an API key at {_AI_STUDIO_KEY_URL} "
+            "and set GEMINI_API_KEY in backend/.env, then restart the backend."
+        )
+    if key.startswith("eyJ"):
+        return (
+            "GEMINI_API_KEY looks like a JWT or service-account token, not a Gemini API key. "
+            f"Use an API key from {_AI_STUDIO_KEY_URL} instead."
+        )
+    if key.startswith("sk-or-"):
+        return (
+            "GEMINI_API_KEY looks like an OpenRouter key. "
+            "Put it in OPENROUTER_API_KEY and use a Gemini key from "
+            f"{_AI_STUDIO_KEY_URL} for GEMINI_API_KEY."
+        )
+    if not key.startswith("AIza"):
+        logger.warning(
+            "GEMINI_API_KEY does not start with AIza; if Gemini returns 401, "
+            "replace it with a key from Google AI Studio."
+        )
+    return None
+
+
+def format_gemini_user_error(exc: Exception) -> str:
+    """Turn SDK/auth failures into actionable setup guidance."""
+    text = str(exc)
+    upper = text.upper()
+    if "ACCESS_TOKEN_TYPE_UNSUPPORTED" in upper or (
+        "401" in text and "UNAUTHENTICATED" in upper
+    ):
+        return (
+            "Invalid Gemini credentials: an OAuth access token was used instead of an API key. "
+            f"Create a key at {_AI_STUDIO_KEY_URL}, set GEMINI_API_KEY in backend/.env, "
+            "and restart the backend."
+        )
+    if "401" in text and ("UNAUTHENTICATED" in upper or "invalid authentication" in text.lower()):
+        return (
+            "Gemini authentication failed (401). Verify GEMINI_API_KEY in backend/.env is a "
+            f"current key from {_AI_STUDIO_KEY_URL}, then restart the backend."
+        )
+    return text
 
 
 def default_http_options() -> types.HttpOptions:
@@ -35,9 +99,13 @@ def default_http_options() -> types.HttpOptions:
 
 
 def create_genai_client(api_key: str | None = None) -> genai.Client | None:
-    key = (api_key or os.getenv("GEMINI_API_KEY") or "").strip()
-    if not key:
+    global _client_configuration_error
+    key = normalize_gemini_api_key(api_key or os.getenv("GEMINI_API_KEY") or "")
+    config_err = gemini_api_key_configuration_error(key)
+    if config_err:
+        _client_configuration_error = config_err
         return None
+    _client_configuration_error = None
     return genai.Client(api_key=key, http_options=default_http_options())
 
 
@@ -50,8 +118,18 @@ def get_shared_client() -> genai.Client | None:
 
 def reset_shared_client() -> None:
     """Drop cached client (tests or API key rotation)."""
-    global _client
+    global _client, _client_configuration_error
     _client = None
+    _client_configuration_error = None
+
+
+def get_client_configuration_error() -> str | None:
+    """Return a safe, actionable explanation when the Gemini client is unavailable."""
+    if _client is not None:
+        return None
+    if _client_configuration_error is None:
+        create_genai_client()
+    return _client_configuration_error
 
 
 def call_with_server_retry(

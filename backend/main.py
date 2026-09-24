@@ -59,6 +59,7 @@ from services import (
     start_response_streaming_tts,
     stop_response_streaming_tts,
 )
+from streaming_tts import stop_all_streaming_tts
 
 app = FastAPI(title="Ailrac AI Backend", version="2.0.0")
 
@@ -94,6 +95,12 @@ def startup():
     )
     init_db()
     _sync_bot_mode_from_db()
+    from gemini_client import get_client_configuration_error, get_shared_client
+
+    get_shared_client()
+    gemini_err = get_client_configuration_error()
+    if gemini_err:
+        print(f"[WARNING] Gemini unavailable: {gemini_err}")
     start_background_services()
     print("[INFO] Ailrac Backend v2.0 is running at http://localhost:8000")
     print("[INFO] API docs available at http://localhost:8000/docs")
@@ -321,6 +328,7 @@ def voice_status():
 
 @app.post("/api/voice/stop")
 def voice_stop():
+    stop_all_streaming_tts()
     tts_controller.stop()
     return {"status": "stopped"}
 
