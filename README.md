@@ -1,7 +1,8 @@
- HEAD
-# Ailrac AI Assistant v2.4
 
-Ailrac is a premium, full-stack personal AI assistant featuring a beautiful **React (Vite) Frontend** (with dark glassmorphism theme, markdown syntax highlighting, voice input/output) and a robust **FastAPI Python Backend** (powered by Google Gemini 2.5 Flash, SQLite persistence, localized desktop automation, security settings, and Telegram gateway).
+# Ailrac Agentic Dekstop Assistant v2.5
+<img width="1920" height="1080" alt="ailrac" src="https://github.com/user-attachments/assets/6d3ef7ab-7695-4af0-b53b-0429d3534b13" />
+
+Ailrac is a full-stack personal AI assistant featuring a beautiful **React (Vite) Frontend** (with dark minimalist theme, markdown syntax highlighting, voice input/output) and a robust **FastAPI Python Backend** (powered by Google Gemini 2.5 Flash, SQLite persistence, localized desktop automation, security settings, and Telegram gateway).
 
 ---
 
@@ -66,7 +67,7 @@ c:\VScodes\Ailrac\
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx          # Root component
-│   │   ├── index.css        # Premium dark glassmorphism styling
+│   │   ├── index.css        # dark minimalist styling
 │   │   ├── hooks/
 │   │   │   └── useChat.js   # API hook for conversation & settings
 │   │   └── components/
