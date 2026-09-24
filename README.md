@@ -1,5 +1,5 @@
  HEAD
-# Ailrac AI Assistant v2.0
+# Ailrac AI Assistant v2.4
 
 Ailrac is a premium, full-stack personal AI assistant featuring a beautiful **React (Vite) Frontend** (with dark glassmorphism theme, markdown syntax highlighting, voice input/output) and a robust **FastAPI Python Backend** (powered by Google Gemini 2.5 Flash, SQLite persistence, localized desktop automation, security settings, and Telegram gateway).
 
